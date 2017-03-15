@@ -1,0 +1,107 @@
+<!DOCTYPE HTML PUBLIC '-//W3C//DTD HTML 4.01 Transitional//EN'>
+<html lang="en">
+<head>
+<link media="all" href="main.css" type="text/css" rel="stylesheet" />
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+<script src= https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js></script>
+<script src=https://cdn.datatables.net/1.10.12/js/dataTables.bootstrap.min.js></script> 
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap-theme.min.css" integrity="sha384-fLW2N01lMqjakBkx3l/M9EahuwpSfeNvV63J5ezn3uZzapT0u7EYsXMjQV+0En5r" crossorigin="anonymous">
+
+<link rel="stylesheet" href="https://cdn.datatables.net/1.10.12/css/dataTables.bootstrap.min.css">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/js/bootstrap.min.js" integrity="sha384-0mSbJDEHialfmuBBQP6A4Qrprq5OVfW37PRR3j5ELqxss1yVqOtnepnHVP9aJ7xS" crossorigin="anonymous"></script>
+<title>{{ page_title }}</title>
+</head>
+
+<body>
+<nav class="navbar navbar-default">
+  <div class="container-fluid">
+    <!-- Brand and toggle get grouped for better mobile display -->
+    <div class="navbar-header">
+      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+        <span class="sr-only">Toggle navigation</span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+        <span class="icon-bar"></span>
+      </button>
+      <a class="navbar-brand" href="#">PyOmega</a>
+    </div>
+
+    <!-- Collect the nav links, forms, and other content for toggling -->
+    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+      <ul class="nav navbar-nav">
+        <li class="dropdown">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Channels <span class="caret"></span></a>
+          <ul class="dropdown-menu">
+          {% for channelName in channelNames %}
+            <li><a href="{{ channelName }}.html">{{ channelName }}</a></li>
+            {% endfor %}
+          </ul>
+        </li>
+      </ul>
+     </ul>
+    </div><!-- /.navbar-collapse -->
+  </div><!-- /.container-fluid -->
+</nav>
+<div class="container"> 
+    <div class="jumbotron" align="center">
+    <h2 align="center"> Full Omega Scan of event {{ ID }} </h2>
+    </div>
+    <div class="panel panel-success">
+        <div class="panel-body">
+           <table id="omega" class="table table-striped table-bordered" width="100%" cellspacing="0">
+           <thead>
+              <tr>
+                <th>Channel</th>
+                <th>Loudest Energy</th>
+                <th>Most Significant Q</th>
+                <th>Peak Frequency</th>
+               </tr>
+           </thead>
+           <tfoot>
+              <tr>
+                <th>Channel</th>
+                <th>Loudest Energy</th>
+                <th>Most Significant Q</th>
+                <th>Peak Frequency</th>
+               </tr>
+           </tfoot>
+                {% for channelName in channelNames %}
+                <tr>
+                <td>
+                <div class="panel-group">
+                    <div class="panel panel-default">
+                        <div class="panel-heading">
+                            <h4 class="panel-title">
+                                <a data-toggle="collapse" href="#{{channelName}}">{{channelName}}</a>
+                            </h4>
+                        </div>
+                    <div id="{{channelName}}" class="panel-collapse collapse">
+                    <div class="panel-body">
+                     <img width=500px src={{ plots[channelName] }} align="center" />
+
+                      </div>
+                    </div>
+                  </div>
+                </div></td>
+                    <td> {{ SNR[channelName] }} </td>
+                    <td> {{ Q[channelName] }} </td>
+                    <td> {{ FREQ[channelName] }} </td>
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+    </div>
+</div>
+<script>
+$(document).ready(function() {
+    $('#omega').DataTable();
+} );
+</script>
+</body>
+</html>
