@@ -1,1 +1,1 @@
-python ../src/wscan.py --inifile /home/scoughlin/Development/GravitySpyFuture//pyomega/Production/wini.ini --eventTime 1127700030.877928972 --outDir /home/scoughlin/public_html/GravitySpy/FullOmega/ --make-webpage --pathToHTML /home/scoughlin/FullOmega/PyOmega/webpage 
+python ../src/wscan.py --inifile /home/$USER/FullOmega/PyOmega/examples/wini.ini --eventTime 1127700030.877928972 --outDir /home/$USER/public_html/GravitySpy/FullOmega/ --make-webpage --pathToHTML /home/$USER/FullOmega/PyOmega/webpage 

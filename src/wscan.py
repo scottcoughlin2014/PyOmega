@@ -88,17 +88,11 @@ def main():
     plotFrequencyRange       = json.loads(cp.get('parameters','plotFrequencyRange'))
     plotNormalizedERange     = json.loads(cp.get('parameters','plotNormalizedERange'))
     frameCacheFile           = cp.get('channels','frameCacheFile')
-    frameType                = cp.get('channels','frameType')
-    channelName              = cp.get('channels','channelName')
-    detectorName             = channelName.split(':')[0]
+    frameTypes               = cp.get('channels','frameType').split(',')
+    channelNames             = cp.get('channels','channelName').split(',')
+    detectorName             = channelNames[0].split(':')[0]
     det                      = detectorName.split('1')[0]
-    ###########################################################################
-    #                            hard coded parameters                        #
-    ###########################################################################
-    channelNames             = channelName.split(',')
-    frameTypes               = frameType.split(',')
-
-
+ 
     ###########################################################################
     #                           create output directory                       #
     ###########################################################################
@@ -226,9 +220,14 @@ def main():
 
         plots = glob.glob(outDir + '*.png'.format(channelName))
         plots = [i.split('/')[-1] for i in plots]
-        N = 4
+        N = len(plotTimeRanges)
         subList = [plots[n:n+N] for n in range(0, len(plots), N)]
-        channelPlots = dict(zip(channelNameAll,plots))
+        i = 0
+        for channel in channelNameAll:
+            subList[i].append(channel)
+            i=i+1
+
+        channelPlots = {d[4]: d[0:4] for d in subList}
 
         f1 = open(outDir + 'index.html','w')
         env = Environment(loader=FileSystemLoader('../'))
@@ -240,9 +239,7 @@ def main():
             f2 = open(outDir + '%s.html' % channelName, 'w')
             template = env.get_template('webpage/channeltemplate.html'.format(opts.pathToHTML))
             # List plots for given channel
-            plots = glob.glob(outDir + '{0}*0.5.png'.format(channelName))
-            plots = [i.split('/')[-1] for i in plots]
-            print >>f2, template.render(channelNames=channelNameAll,thisChannel=channelName,plots=plots)
+            print >>f2, template.render(channelNames=channelNameAll,thisChannel=channelName,plots=channelPlots)
             f2.close()
 
 if __name__ == '__main__':

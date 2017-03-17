@@ -54,7 +54,7 @@
     <div class="panel panel-success">
         <div class="panel-body">
             <div class="col-lg-12">
-                {% for plot in plots %}
+                {% for plot in plots[thisChannel] %}
                 <img width=500px src={{ plot }} align="center" />
                 {% endfor %}
             </div>

@@ -83,7 +83,9 @@
                         </div>
                     <div id="{{channelName}}" class="panel-collapse collapse">
                     <div class="panel-body">
-                     <img width=500px src={{ plots[channelName] }} align="center" />
+                     {% for iImage in plots[channelName] %}
+                         <img width=500px src={{ iImage }} align="center" />
+                     {% endfor %}
 
                       </div>
                     </div>
