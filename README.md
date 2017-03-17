@@ -6,6 +6,6 @@ A repostiory for the python production of LIGO omega scans
 . /home/detchar/opt/gwpysoft/bin/activate
 
 # Run example
-cd examples
-change wscan.param as is necessary
-bash wscan.param
+* cd examples
+* change wscan.param as is necessary
+* bash wscan.param
