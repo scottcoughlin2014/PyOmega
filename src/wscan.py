@@ -6,6 +6,7 @@ from __future__ import division
 
 import sys
 import os
+import glob
 import random
 import string
 import shutil
@@ -13,17 +14,29 @@ import ConfigParser
 import optparse
 import json
 import rlcompleter
+import pdb
+import operator
+
+from panoptes_client import *
+
+import pandas as pd
+import numpy as np
+
+from scipy import signal
+from scipy.interpolate import InterpolatedUnivariateSpline
+
+from sqlalchemy.engine import create_engine
 
 from jinja2 import Environment, FileSystemLoader
-import glob
-
-import numpy as np
 
 from matplotlib import use
 use('agg')
 from matplotlib import (pyplot as plt, cm)
-from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
+from matplotlib.ticker import ScalarFormatter
+from matplotlib.ticker import FormatStrFormatter
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.patches import Polygon
+from matplotlib.collections import PatchCollection
 from gwpy.plotter import rcParams
 import matplotlib as mpl
 mpl.rcParams.update(mpl.rcParamsDefault)
@@ -31,6 +44,16 @@ mpl.rcParams.update(mpl.rcParamsDefault)
 from glue import datafind
 
 from gwpy.timeseries import TimeSeries
+from gwpy.plotter import Plot
+from gwpy.spectrogram import Spectrogram
+from gwpy.segments import Segment
+
+from pyomega import __version__
+import pyomega.ML.make_pickle_for_linux as make_pickle
+import pyomega.ML.labelling_test_glitches as label_glitches
+import pyomega.API.projectStructure as Structure
+
+pdb.Pdb.complete = rlcompleter.Completer(locals()).complete
 
 ###############################################################################
 ##########################                             ########################
@@ -155,56 +178,92 @@ def main():
         if data.sample_rate.decompose().value != sampleFrequency:
             data = data.resample(sampleFrequency)
 
+	# Cropping the results before interpolation to save on time and memory
+	# perform the q-transform
+	try:
+	    specsgrams = []
+	    for iTimeWindow in plotTimeRanges:
+		durForPlot = iTimeWindow/2
+		try:
+		    outseg = Segment(centerTime - durForPlot, centerTime + durForPlot)
+		    qScan = data.q_transform(qrange=(4, 64), frange=(10, 2048),
+				     gps=centerTime, search=0.5, tres=0.002,
+				     fres=0.5, outseg=outseg, whiten=True)
+                    qValue = qScan.q
+		    qScan = qScan.crop(centerTime-iTimeWindow/2, centerTime+iTimeWindow/2)
+		except:
+		    outseg = Segment(centerTime - 2*durForPlot, centerTime + 2*durForPlot)
+		    qScan = data.q_transform(qrange=(4, 64), frange=(10, 2048),
+				     gps=centerTime, search=0.5, tres=0.002,
+				     fres=0.5, outseg=outseg, whiten=True)
+                    qValue = qScan.q
+		    qScan = qScan.crop(centerTime-iTimeWindow/2, centerTime+iTimeWindow/2)
+		specsgrams.append(qScan)
 
-        try:
-            qScan = data.q_transform(qrange=searchQRange, frange=searchFrequencyRange, gps=centerTime, search=searchWindowDuration, tres=0.001, fres=0.5, outseg=None, whiten=True)
-        except:
-            print('bad channel {0}: skipping qScan'.format(channelName))
-            continue
+	    loudestEnergyAll.append(qScan.max().value)
+	    peakFreqAll.append(qScan.yindex[np.where(qScan.value == qScan.max().value)[1]].value[0])
+	    mostSignQAll.append(qValue)
+	    channelNameAll.append(channelName)
 
-        loudestEnergyAll.append(qScan.max().value)
-        peakFreqAll.append(qScan.yindex[np.where(qScan.value == qScan.max().value)[1]].value[0])
-        mostSignQAll.append(qScan.q)
-        channelNameAll.append(channelName)
+	except:
+	    print('bad channel {0}: skipping qScan'.format(channelName))
+	    continue
 
-        for iTimeWindow in plotTimeRanges:
-            myfontsize = 15
-            mylabelfontsize = 20
-            myColor = 'k'
-            if detectorName == 'H1':
-                title = "Hanford"
-            elif detectorName == 'L1':
-                title = "Livingston"
-            else:
-                title = "VIRGO"
+	if opts.make_webpage:
+	    # Set some plotting params
+	    myfontsize = 15
+	    mylabelfontsize = 20
+	    myColor = 'k'
+	    if detectorName == 'H1':
+		title = "Hanford"
+	    elif detectorName == 'L1':
+		title = "Livingston"
+	    else:
+		title = "VIRGO"
 
-            if 1161907217 < startTime < 1164499217:
-                title = title + ' - ER10'
-            elif startTime > 1164499217:
-                title = title + ' - O2a'
-            elif 1126400000 < startTime < 1137250000:
-                title = title + ' - O1'
-            else:
-                ValueError("Time outside science or engineering run or more likely code not updated to reflect new science run")
+	    if 1161907217 < startTime < 1164499217:
+		title = title + ' - ER10'
+	    elif startTime > 1164499217:
+		title = title + ' - O2a'
+	    elif 1126400000 < startTime < 1137250000:
+		title = title + ' - O1'
+	    else:
+		raise ValueError("Time outside science or engineering run\
+			   or more likely code not updated to reflect\
+			   new science run")
 
-            plot = qScan.crop(centerTime-iTimeWindow/2, centerTime+iTimeWindow/2).plot(figsize=[8, 6])
-            ax = plot.gca()
-            ax.set_position([0.125, 0.1, 0.775, 0.8])
-            ax.set_epoch(centerTime)
-            ax.set_yscale('log',basey=2)
-            ax.set_xlabel('Time [seconds]',fontsize=mylabelfontsize, color=myColor)
-            ax.set_ylabel('Frequency [Hz]',fontsize=mylabelfontsize, color=myColor)
-            ax.set_title(title,fontsize=mylabelfontsize, color=myColor)
-            ax.set_ylim(plotFrequencyRange)
-            ax.set_xlim(centerTime-iTimeWindow/2, centerTime+iTimeWindow/2)
-            for axis in [ax.yaxis]:
-                axis.set_major_formatter(ScalarFormatter())
-            ax.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-            plt.tick_params(axis='both', which='major', labelsize=myfontsize)
-            ax.grid(False)
-            plot.add_colorbar(cmap='viridis', label='Normalized energy',clim=plotNormalizedERange,pad="3%",width="5%")
-            dur = float(iTimeWindow)
-            plot.save(outDir + channelName.replace(':','-') + '_' +IDstring + '_spectrogram_' + str(dur) +'.png')
+
+	    # Create one image containing all spectogram grams
+	    superFig = Plot(figsize=(27,6))
+	    superFig.add_subplot(141, projection='timeseries')
+	    superFig.add_subplot(142, projection='timeseries')
+	    superFig.add_subplot(143, projection='timeseries')
+	    superFig.add_subplot(144, projection='timeseries')
+	    iN = 0
+
+	    for iAx, spec in zip(superFig.axes, specsgrams):
+		iAx.plot(spec)
+
+		iAx.set_yscale('log', basey=2)
+		iAx.set_xscale('linear')
+
+		xticks = np.linspace(spec.xindex.min().value,spec.xindex.max().value,5)
+		xticklabels = []
+		dur = float(plotTimeRanges[iN])
+		[xticklabels.append(str(i)) for i in np.linspace(-dur/2, dur/2, 5)]
+		iAx.set_xticks(xticks)
+		iAx.set_xticklabels(xticklabels)
+
+		iAx.set_xlabel('Time (s)', labelpad=0.1, fontsize=mylabelfontsize, color=myColor)
+		iAx.set_ylim(10, 2048)
+		iAx.yaxis.set_major_formatter(ScalarFormatter())
+		iAx.ticklabel_format(axis='y', style='plain')
+		iN = iN + 1
+
+		superFig.add_colorbar(ax=iAx, cmap='viridis', label='Normalized energy', clim=plotNormalizedERange, pad="3%", width="5%")
+
+	    superFig.suptitle(title, fontsize=mylabelfontsize, color=myColor,x=0.51)
+            superFig.save(outDir + channelName.replace(':','-') + '_' +IDstring + '_spectrogram_'  + '.png')
 
     if opts.make_webpage:
 
@@ -220,14 +279,7 @@ def main():
 
         plots = glob.glob(outDir + '*.png'.format(channelName))
         plots = [i.split('/')[-1] for i in plots]
-        N = len(plotTimeRanges)
-        subList = [plots[n:n+N] for n in range(0, len(plots), N)]
-        i = 0
-        for channel in channelNameAll:
-            subList[i].append(channel)
-            i=i+1
-
-        channelPlots = {d[4]: d[0:4] for d in subList}
+        channelPlots = dict(zip(channelNameAll,plots))
 
         f1 = open(outDir + 'index.html','w')
         env = Environment(loader=FileSystemLoader('../'))
