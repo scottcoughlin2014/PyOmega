@@ -17,8 +17,6 @@ import rlcompleter
 import pdb
 import operator
 
-from panoptes_client import *
-
 import pandas as pd
 import numpy as np
 
@@ -47,6 +45,7 @@ from gwpy.timeseries import TimeSeries
 from gwpy.plotter import Plot
 from gwpy.spectrogram import Spectrogram
 from gwpy.segments import Segment
+from gwpy.utils import mp as mp_utils
 
 from pyomega import __version__
 import pyomega.ML.make_pickle_for_linux as make_pickle
@@ -159,140 +158,189 @@ def main():
     channelNameAll   = []
     peakFreqAll      = []
     mostSignQAll     = []
-
-    for channelName in channelNames:
-        if 'STRAIN' in channelName:
-            frameType = frameTypes[0]
-        else:
-            frameType = frameTypes[1]
-
-        # Read in the data
-        if opts.NSDF:
-            data = TimeSeries.fetch(channelName,startTime,stopTime)
-        else:
-            connection = datafind.GWDataFindHTTPConnection()
-            cache = connection.find_frame_urls(det, frameType, startTime, stopTime, urltype='file')
-            data = TimeSeries.read(cache,channelName, format='gwf',start=startTime,end=stopTime)
-
-        # resample data
-        if data.sample_rate.decompose().value != sampleFrequency:
-            data = data.resample(sampleFrequency)
-
-	# Cropping the results before interpolation to save on time and memory
-	# perform the q-transform
-	try:
-	    specsgrams = []
-	    for iTimeWindow in plotTimeRanges:
-		durForPlot = iTimeWindow/2
-		try:
-		    outseg = Segment(centerTime - durForPlot, centerTime + durForPlot)
-		    qScan = data.q_transform(qrange=(4, 64), frange=(10, 2048),
-				     gps=centerTime, search=0.5, tres=0.002,
-				     fres=0.5, outseg=outseg, whiten=True)
-                    qValue = qScan.q
-		    qScan = qScan.crop(centerTime-iTimeWindow/2, centerTime+iTimeWindow/2)
-		except:
-		    outseg = Segment(centerTime - 2*durForPlot, centerTime + 2*durForPlot)
-		    qScan = data.q_transform(qrange=(4, 64), frange=(10, 2048),
-				     gps=centerTime, search=0.5, tres=0.002,
-				     fres=0.5, outseg=outseg, whiten=True)
-                    qValue = qScan.q
-		    qScan = qScan.crop(centerTime-iTimeWindow/2, centerTime+iTimeWindow/2)
-		specsgrams.append(qScan)
-
-	    loudestEnergyAll.append(qScan.max().value)
-	    peakFreqAll.append(qScan.yindex[np.where(qScan.value == qScan.max().value)[1]].value[0])
-	    mostSignQAll.append(qValue)
-	    channelNameAll.append(channelName)
-
-	except:
-	    print('bad channel {0}: skipping qScan'.format(channelName))
-	    continue
-
-	if opts.make_webpage:
-	    # Set some plotting params
-	    myfontsize = 15
-	    mylabelfontsize = 20
-	    myColor = 'k'
-	    if detectorName == 'H1':
-		title = "Hanford"
-	    elif detectorName == 'L1':
-		title = "Livingston"
-	    else:
-		title = "VIRGO"
-
-	    if 1161907217 < startTime < 1164499217:
-		title = title + ' - ER10'
-	    elif startTime > 1164499217:
-		title = title + ' - O2a'
-	    elif 1126400000 < startTime < 1137250000:
-		title = title + ' - O1'
-	    else:
-		raise ValueError("Time outside science or engineering run\
-			   or more likely code not updated to reflect\
-			   new science run")
+    plotsAll = []
 
 
-	    # Create one image containing all spectogram grams
-	    superFig = Plot(figsize=(27,6))
-	    superFig.add_subplot(141, projection='timeseries')
-	    superFig.add_subplot(142, projection='timeseries')
-	    superFig.add_subplot(143, projection='timeseries')
-	    superFig.add_subplot(144, projection='timeseries')
-	    iN = 0
+    input_tuple = zip(channelNames, [startTime] * len(channelNames), [stopTime] * len(channelNames), [centerTime] * len(channelNames), [plotTimeRanges] * len(channelNames), [sampleFrequency] * len(channelNames)) 
+    specgrams = make_q_transform_wrapper(input_tuple, nproc=33)
+    
+    for output in specgrams:
+        try:
+            scanReturn = output[1]
+            loudestEnergyAll.append(scanReturn[0].max().value)
+            peakFreqAll.append(scanReturn[0].yindex[np.where(scanReturn[0].value == scanReturn[0].max().value)[1]].value[0])
+            mostSignQAll.append(5.4)
+        except:
+            print('processing of spectrogram of {0} spectrogram failed'.format(channelName_return))
 
-	    for iAx, spec in zip(superFig.axes, specsgrams):
-		iAx.plot(spec)
+        input_tuple_return = output[0]
+        channelName_return = input_tuple_return[0]
+        channelNameAll.append(channelName_return)
+        plotsAll.append(channelName_return.replace(':','-') + '_' +IDstring + '_spectrogram_'  + '.png')
 
-		iAx.set_yscale('log', basey=2)
-		iAx.set_xscale('linear')
+    if opts.make_webpage:
+	# Set some plotting params
+	myfontsize = 15
+	mylabelfontsize = 20
+	myColor = 'k'
+	if detectorName == 'H1':
+	    title = "Hanford"
+	elif detectorName == 'L1':
+	    title = "Livingston"
+	else:
+	    title = "VIRGO"
 
-		xticks = np.linspace(spec.xindex.min().value,spec.xindex.max().value,5)
-		xticklabels = []
-		dur = float(plotTimeRanges[iN])
-		[xticklabels.append(str(i)) for i in np.linspace(-dur/2, dur/2, 5)]
-		iAx.set_xticks(xticks)
-		iAx.set_xticklabels(xticklabels)
+	if 1161907217 < startTime < 1164499217:
+	    title = title + ' - ER10'
+	elif startTime > 1164499217:
+	    title = title + ' - O2a'
+	elif 1126400000 < startTime < 1137250000:
+	    title = title + ' - O1'
+	else:
+	    raise ValueError("Time outside science or engineering run\
+		       or more likely code not updated to reflect\
+		       new science run")
 
-		iAx.set_xlabel('Time (s)', labelpad=0.1, fontsize=mylabelfontsize, color=myColor)
-		iAx.set_ylim(10, 2048)
-		iAx.yaxis.set_major_formatter(ScalarFormatter())
-		iAx.ticklabel_format(axis='y', style='plain')
-		iN = iN + 1
+    for output in specgrams:
+        try:
+            scanReturn = output[1]
+        except:
+            print('processing of spectrogram of {0} spectrogram failed'.format(channelName_return))
+        input_tuple_return = output[0]
+        channelName_return = input_tuple_return[0]
 
-		superFig.add_colorbar(ax=iAx, cmap='viridis', label='Normalized energy', clim=plotNormalizedERange, pad="3%", width="5%")
 
-	    superFig.suptitle(title, fontsize=mylabelfontsize, color=myColor,x=0.51)
-            superFig.save(outDir + channelName.replace(':','-') + '_' +IDstring + '_spectrogram_'  + '.png')
+	# Create one image containing all spectogram grams
+	superFig = Plot(figsize=(27,6))
+	superFig.add_subplot(141, projection='timeseries')
+	superFig.add_subplot(142, projection='timeseries')
+	superFig.add_subplot(143, projection='timeseries')
+	superFig.add_subplot(144, projection='timeseries')
+	iN = 0
+
+	for iAx, spec in zip(superFig.axes, scanReturn):
+	    iAx.plot(spec)
+
+	    iAx.set_yscale('log', basey=2)
+	    iAx.set_xscale('linear')
+
+	    xticks = np.linspace(spec.xindex.min().value,spec.xindex.max().value,5)
+	    xticklabels = []
+	    dur = float(plotTimeRanges[iN])
+	    [xticklabels.append(str(i)) for i in np.linspace(-dur/2, dur/2, 5)]
+	    iAx.set_xticks(xticks)
+	    iAx.set_xticklabels(xticklabels)
+
+	    iAx.set_xlabel('Time (s)', labelpad=0.1, fontsize=mylabelfontsize, color=myColor)
+	    iAx.set_ylim(10, 2048)
+	    iAx.yaxis.set_major_formatter(ScalarFormatter())
+	    iAx.ticklabel_format(axis='y', style='plain')
+	    iN = iN + 1
+
+	    superFig.add_colorbar(ax=iAx, cmap='viridis', label='Normalized energy', clim=plotNormalizedERange, pad="3%", width="5%")
+
+	superFig.suptitle(title, fontsize=mylabelfontsize, color=myColor,x=0.51)
+	superFig.save(outDir + channelName_return.replace(':','-') + '_' +IDstring + '_spectrogram_'  + '.png')
 
     if opts.make_webpage:
 
-        channelNameAll   = [i.replace(':','-') for i in channelNameAll]
-        loudestEnergyAll = [str(i) for i in loudestEnergyAll]
-        peakFreqAll      = [str(i) for i in peakFreqAll]
-        mostSignQAll     = [str(i) for i in mostSignQAll]
+	channelNameAll   = [i.replace(':','-') for i in channelNameAll]
+	loudestEnergyAll = [str(i) for i in loudestEnergyAll]
+	peakFreqAll      = [str(i) for i in peakFreqAll]
+	mostSignQAll     = [str(i) for i in mostSignQAll]
 
-        # Zip SNR with channelName
-        loudestEnergyAll = dict(zip(channelNameAll,loudestEnergyAll))
-        peakFreqAll      = dict(zip(channelNameAll,peakFreqAll))
-        mostSignQAll     = dict(zip(channelNameAll,mostSignQAll))
+	# Zip SNR with channelName
+	loudestEnergyAll = dict(zip(channelNameAll,loudestEnergyAll))
+	peakFreqAll      = dict(zip(channelNameAll,peakFreqAll))
+	mostSignQAll     = dict(zip(channelNameAll,mostSignQAll))
+	channelPlots = dict(zip(channelNameAll,plotsAll))
 
-        plots = glob.glob(outDir + '*.png'.format(channelName))
-        plots = [i.split('/')[-1] for i in plots]
-        channelPlots = dict(zip(channelNameAll,plots))
+	f1 = open(outDir + 'index.html','w')
+	env = Environment(loader=FileSystemLoader('{0}'.format(opts.pathToHTML)))
+	template = env.get_template('omegatemplate.html')
+	print >>f1, template.render(channelNames=channelNameAll, SNR=loudestEnergyAll,Q=mostSignQAll,FREQ=peakFreqAll,ID=IDstring,plots=channelPlots)
+	f1.close()
 
-        f1 = open(outDir + 'index.html','w')
-        env = Environment(loader=FileSystemLoader('../'))
-        template = env.get_template('webpage/omegatemplate.html')
-        print >>f1, template.render(channelNames=channelNameAll, SNR=loudestEnergyAll,Q=mostSignQAll,FREQ=peakFreqAll,ID=IDstring,plots=channelPlots)
-        f1.close()
+	for channelName in channelNameAll:
+	    f2 = open(outDir + '%s.html' % channelName, 'w')
+	    template = env.get_template('channeltemplate.html')
+	    # List plots for given channel
+	    print >>f2, template.render(channelNames=channelNameAll,thisChannel=channelName,plots=channelPlots)
+	    f2.close()
 
-        for channelName in channelNameAll:
-            f2 = open(outDir + '%s.html' % channelName, 'w')
-            template = env.get_template('webpage/channeltemplate.html'.format(opts.pathToHTML))
-            # List plots for given channel
-            print >>f2, template.render(channelNames=channelNameAll,thisChannel=channelName,plots=channelPlots)
-            f2.close()
+
+def get_data(input_tuple):
+    from gwpy.timeseries import TimeSeries
+    from gwpy.segments import Segment
+    channelName = input_tuple[0]
+    startTime = input_tuple[1]
+    stopTime = input_tuple[2]
+    centerTime = input_tuple[3]
+    plotTimeRanges = input_tuple[4]
+    sampleFrequency = input_tuple[5]
+
+    data = TimeSeries.get(channelName, startTime, stopTime)
+
+    # resample data
+    if data.sample_rate.decompose().value != sampleFrequency:
+	data = data.resample(sampleFrequency)
+
+    # Cropping the results before interpolation to save on time and memory
+    # perform the q-transform
+    specsgrams = []
+    try:
+	for iTimeWindow in plotTimeRanges:
+	    durForPlot = iTimeWindow/2
+	    try:
+		outseg = Segment(centerTime - durForPlot, centerTime + durForPlot)
+		qScan = data.q_transform(qrange=(4, 64), frange=(10, 2048),
+				 gps=centerTime, search=0.5, tres=0.01,
+				 fres=1.0, outseg=outseg, whiten=True)
+		qValue = qScan.q
+		qScan = qScan.crop(centerTime-iTimeWindow/2, centerTime+iTimeWindow/2)
+	    except:
+		outseg = Segment(centerTime - 2*durForPlot, centerTime + 2*durForPlot)
+		qScan = data.q_transform(qrange=(4, 64), frange=(10, 2048),
+				 gps=centerTime, search=0.5, tres=0.01,
+				 fres=1.0, outseg=outseg, whiten=True)
+		qValue = qScan.q
+		qScan = qScan.crop(centerTime-iTimeWindow/2, centerTime+iTimeWindow/2)
+	    specsgrams.append(qScan)
+    except:
+	print('bad channel {0}: skipping qScan'.format(channelName))
+
+    return specsgrams
+
+
+def make_q_transform_wrapper(input_tuple, **kwargs):
+
+    from gwpy.utils import mp as mp_utils
+    # Read in the data
+    # define multiprocessing method
+    def _read_single_channel(f):
+        try:
+            return f, get_data(f)
+        except Exception as e:
+            if nproc == 1:
+                raise
+            else:
+                return f, e
+
+    # calculate maximum number of processes
+    nproc = min(kwargs.pop('nproc', 1), len(input_tuple))
+
+    # read files
+    output = mp_utils.multiprocess_with_queues(
+        nproc, _read_single_channel, input_tuple, raise_exceptions=False)
+
+    # raise exceptions (from multiprocessing, single process raises inline)
+    for f, x in output:
+        if isinstance(x, Exception):
+            x.args = ('Failed to read %s: %s' % (f, str(x)),)
+            raise x
+
+    return output
+
 
 if __name__ == '__main__':
     main()
