@@ -1,1 +1,1 @@
-python ../src/wscan.py --inifile wini.ini --eventTime 1127700030.877928972 --outDir /home/scoughlin/public_html/FullOmega/1127700030.877928972 --make-webpage --pathToHTML /home/scoughlin/Project/PyOmega//webpage
+full_wscan --inifile /home/scoughlin/Project/PyOmega/examples/wini.ini --eventTime 1127700030.877928972 --outDir /home/scoughlin/public_html/FullOmega/1127700030.877928972 --make-webpage --pathToHTML /home/scoughlin/Project/PyOmega//webpage --nproc 8

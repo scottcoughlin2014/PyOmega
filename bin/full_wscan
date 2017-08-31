@@ -23,8 +23,6 @@ import numpy as np
 from scipy import signal
 from scipy.interpolate import InterpolatedUnivariateSpline
 
-from sqlalchemy.engine import create_engine
-
 from jinja2 import Environment, FileSystemLoader
 
 from matplotlib import use
@@ -47,10 +45,7 @@ from gwpy.spectrogram import Spectrogram
 from gwpy.segments import Segment
 from gwpy.utils import mp as mp_utils
 
-from pyomega import __version__
-import pyomega.ML.make_pickle_for_linux as make_pickle
-import pyomega.ML.labelling_test_glitches as label_glitches
-import pyomega.API.projectStructure as Structure
+from omega import __version__
 
 pdb.Pdb.complete = rlcompleter.Completer(locals()).complete
 
@@ -67,6 +62,7 @@ def parse_commandline():
     parser = optparse.OptionParser()
     parser.add_option("--inifile", help="Name of ini file of params")
     parser.add_option("--eventTime", type=float,help="Trigger time of the glitch")
+    parser.add_option("--nproc", type=int, help="Number of processors to use to read and perform q_transform with", default=1)
     parser.add_option("--outDir", help="Outdir of omega scan and omega scan webpage (i.e. your html directory)")
     parser.add_option("--pathToHTML", help="Outdir of omega scan and omega scan webpage (i.e. your html directory)")
     parser.add_option("--NSDF", action="store_true", default=False,help="No framecache file available want to use NSDF server")
@@ -162,21 +158,20 @@ def main():
 
 
     input_tuple = zip(channelNames, [startTime] * len(channelNames), [stopTime] * len(channelNames), [centerTime] * len(channelNames), [plotTimeRanges] * len(channelNames), [sampleFrequency] * len(channelNames)) 
-    specgrams = make_q_transform_wrapper(input_tuple, nproc=33)
+    specgrams = make_q_transform_wrapper(input_tuple, nproc=opts.nproc)
     
     for output in specgrams:
         try:
-            scanReturn = output[1]
-            loudestEnergyAll.append(scanReturn[0].max().value)
-            peakFreqAll.append(scanReturn[0].yindex[np.where(scanReturn[0].value == scanReturn[0].max().value)[1]].value[0])
-            mostSignQAll.append(5.4)
+	    scanReturn = output[1]
+	    loudestEnergyAll.append(scanReturn[0].max().value)
+	    peakFreqAll.append(scanReturn[0].yindex[np.where(scanReturn[0].value == scanReturn[0].max().value)[1]].value[0])
+	    mostSignQAll.append(5.4)
+	    input_tuple_return = output[0]
+	    channelName_return = input_tuple_return[0]
+	    channelNameAll.append(channelName_return)
+	    plotsAll.append(channelName_return.replace(':','-') + '_' +IDstring + '_spectrogram_'  + '.png')
         except:
-            print('processing of spectrogram of {0} spectrogram failed'.format(channelName_return))
-
-        input_tuple_return = output[0]
-        channelName_return = input_tuple_return[0]
-        channelNameAll.append(channelName_return)
-        plotsAll.append(channelName_return.replace(':','-') + '_' +IDstring + '_spectrogram_'  + '.png')
+	    print('processing of spectrogram of {0} spectrogram failed'.format(channelName_return))
 
     if opts.make_webpage:
 	# Set some plotting params
@@ -206,6 +201,7 @@ def main():
             scanReturn = output[1]
         except:
             print('processing of spectrogram of {0} spectrogram failed'.format(channelName_return))
+            continue
         input_tuple_return = output[0]
         channelName_return = input_tuple_return[0]
 
@@ -253,7 +249,7 @@ def main():
 	loudestEnergyAll = dict(zip(channelNameAll,loudestEnergyAll))
 	peakFreqAll      = dict(zip(channelNameAll,peakFreqAll))
 	mostSignQAll     = dict(zip(channelNameAll,mostSignQAll))
-	channelPlots = dict(zip(channelNameAll,plotsAll))
+	channelPlots     = dict(zip(channelNameAll,plotsAll))
 
 	f1 = open(outDir + 'index.html','w')
 	env = Environment(loader=FileSystemLoader('{0}'.format(opts.pathToHTML)))

@@ -32,8 +32,8 @@ import os.path
 from setuptools import (setup, find_packages)
 
 # set basic metadata
-PACKAGENAME = 'pyomega'
-DISTNAME = 'pyomega'
+PACKAGENAME = 'omega'
+DISTNAME = 'omega'
 AUTHOR = 'Scott Coughlin'
 AUTHOR_EMAIL = 'scott.coughlin@ligo.org'
 LICENSE = 'GPLv3'
@@ -63,28 +63,8 @@ setup_requires = [
     'pytest-runner',
 ]
 install_requires = [
-    'SQLAlchemy',
-    'cython',
-    'six',
-    'numpy',
-    'scipy',
-    'astropy',
-    'matplotlib',
-    'gitpython',
-    'h5py',
+    'gwpy==0.5.2',
     'jinja2',
-    'M2Crypto',
-    'pykerberos',
-    'python_cjson',
-    'pyRXP',
-    'scikit_image',
-    'Theano',
-    'keras',
-    'pandas',
-    'gwpy',
-    'lscsoft_glue',
-    'psycopg2',
-    'panoptes_client',
 ]
 tests_require = [
     'pytest'
@@ -127,7 +107,6 @@ setup(name=DISTNAME,
           'http://software.ligo.org/lscsoft/source/dqsegdb-1.2.2.tar.gz',
           'https://github.com/ligovirgo/trigfind/archive/v0.4.tar.gz',
       ],
-      test_suite='pyomega.tests',
       use_2to3=True,
       classifiers=[
           'Programming Language :: Python',

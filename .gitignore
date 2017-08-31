@@ -4,10 +4,10 @@
 *.ipynb_checkpoints
 
 # build products
-/pyomega/version.py
+/omega/version.py
 /build/
 /dist/
-/pyomega.egg-info
+/omega.egg-info
 /.eggs/
 
 # documentation products
