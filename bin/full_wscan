@@ -250,11 +250,12 @@ def main():
 	peakFreqAll      = dict(zip(channelNameAll,peakFreqAll))
 	mostSignQAll     = dict(zip(channelNameAll,mostSignQAll))
 	channelPlots     = dict(zip(channelNameAll,plotsAll))
+        systemNames = ['CAL', 'LSC', 'ALS', 'ASC', 'HPI', 'IMC', 'OMC', 'PSL', 'TCS', 'SUS', 'ISI', 'PEM']
 
 	f1 = open(outDir + 'index.html','w')
 	env = Environment(loader=FileSystemLoader('{0}'.format(opts.pathToHTML)))
 	template = env.get_template('omegatemplate.html')
-	print >>f1, template.render(channelNames=channelNameAll, SNR=loudestEnergyAll,Q=mostSignQAll,FREQ=peakFreqAll,ID=IDstring,plots=channelPlots)
+	print >> f1, template.render(channelNames=channelNameAll, SNR=loudestEnergyAll, Q=mostSignQAll, FREQ=peakFreqAll, ID=IDstring, plots=channelPlots, systemNames=systemNames)
 	f1.close()
 
 	for channelName in channelNameAll:
